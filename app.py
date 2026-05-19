@@ -8,7 +8,7 @@ st.set_page_config(page_title="My Investment Hub AI", layout="wide", initial_sid
 
 st.title("🚀 My Investment Hub AI")
 st.sidebar.header("Navigazione")
-pagina = st.sidebar.selectbox("Vai a:", ["Analisi Titolo", "Il Ring (Confronto Titoli)", "Il Mio Portafoglio", "Calcolatore PAC", "Radar Crescita", "Market News & AI Sentiment"])
+pagina = st.sidebar.selectbox("Vai a:", ["Analisi Titolo", "Il Ring (Confronto Titoli)", "Il Mio Portafoglio", "Calcolatore PAC", "Radar Crescita", "Cruscotto Macroeconomico", "Market News & AI Sentiment"])
 # --- IL MOTORE DEL CACHING (IL TURBO!) ---
 @st.cache_resource
 def carica_ia():
@@ -267,6 +267,65 @@ elif pagina == "Radar Crescita":
         st.download_button(label="📥 Scarica in formato Excel (CSV)", data=csv, file_name='radar_crescita_aziende.csv', mime='text/csv')
     else: 
         st.warning("Nessuna azienda soddisfa i filtri.")
+# --- PAGINA NUOVA: CRUSCOTTO MACROECONOMICO ---
+elif pagina == "Cruscotto Macroeconomico":
+    st.header("🌍 Cruscotto Macroeconomico")
+    st.write("Monitora i polsi dell'economia globale in tempo reale. I dati mostrano la chiusura attuale e la variazione percentuale rispetto al giorno precedente.")
+
+    # Dizionario con i ticker degli indicatori mondiali
+    macro_tickers = {
+        "S&P 500 (Azionario)": "^GSPC",
+        "Oro (Beni Rifugio)": "GC=F",
+        "Petrolio WTI (Energia)": "CL=F",
+        "Cambio EUR/USD": "EURUSD=X",
+        "T-Bond 10Y (Tassi)": "^TNX"
+    }
+
+    with st.spinner("Lettura dei dati globali in corso..."):
+        # Creiamo 5 colonne perfettamente allineate per i KPI
+        cols = st.columns(len(macro_tickers))
+        
+        for i, (nome, ticker) in enumerate(macro_tickers.items()):
+            try:
+                # Scarichiamo gli ultimi 5 giorni per essere sicuri di avere dati validi (es. se oggi è weekend)
+                dati = yf.Ticker(ticker).history(period="5d")
+                if not dati.empty and len(dati) >= 2:
+                    chiusura_oggi = dati['Close'].iloc[-1]
+                    chiusura_ieri = dati['Close'].iloc[-2]
+                    delta_perc = ((chiusura_oggi - chiusura_ieri) / chiusura_ieri) * 100
+                    
+                    # Se è il T-Bond, formattiamo con il simbolo % direttamente nel valore
+                    valore_formattato = f"{chiusura_oggi:.2f}%" if ticker == "^TNX" else f"{chiusura_oggi:.2f}"
+                    
+                    cols[i].metric(nome.split(" (")[0], valore_formattato, f"{delta_perc:.2f}%")
+                else:
+                    cols[i].metric(nome.split(" (")[0], "N/D")
+            except:
+                cols[i].metric(nome.split(" (")[0], "Errore")
+
+    st.divider()
+    
+    st.subheader("📈 Analisi del Trend (Ultimo Anno)")
+    selettore_trend = st.selectbox("Seleziona l'indicatore per vederne l'andamento storico:", list(macro_tickers.keys()))
+
+    if selettore_trend:
+        ticker_scelto = macro_tickers[selettore_trend]
+        with st.spinner("Generazione grafico..."):
+            storico_macro = yf.Ticker(ticker_scelto).history(period="1y")
+            
+            if not storico_macro.empty:
+                # Il grafico diventa verde se il trend annuale è positivo, rosso se negativo
+                colore_linea = '#2ecc71' if storico_macro['Close'].iloc[-1] >= storico_macro['Close'].iloc[0] else '#e74c3c'
+                
+                fig_macro = go.Figure(data=[go.Scatter(x=storico_macro.index, y=storico_macro['Close'], mode='lines', fill='tozeroy', line=dict(color=colore_linea, width=2))])
+                fig_macro.update_layout(title=f"Andamento {selettore_trend} (1 Anno)", template="plotly_dark", margin=dict(l=0, r=0, t=40, b=0), height=400)
+                st.plotly_chart(fig_macro, use_container_width=True)
+            else:
+                st.warning("Dati storici non disponibili al momento.")
+
+
+
+
 
 # --- PAGINA 5: MARKET NEWS & AI SENTIMENT ---
 elif pagina == "Market News & AI Sentiment":

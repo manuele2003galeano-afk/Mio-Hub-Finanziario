@@ -8,8 +8,7 @@ st.set_page_config(page_title="My Investment Hub AI", layout="wide", initial_sid
 
 st.title("🚀 My Investment Hub AI")
 st.sidebar.header("Navigazione")
-pagina = st.sidebar.selectbox("Vai a:", ["Analisi Titolo", "Il Mio Portafoglio", "Calcolatore PAC", "Radar Crescita", "Market News & AI Sentiment"])
-
+pagina = st.sidebar.selectbox("Vai a:", ["Analisi Titolo", "Il Ring (Confronto Titoli)", "Il Mio Portafoglio", "Calcolatore PAC", "Radar Crescita", "Market News & AI Sentiment"])
 # --- IL MOTORE DEL CACHING (IL TURBO!) ---
 @st.cache_resource
 def carica_ia():
@@ -99,6 +98,56 @@ if pagina == "Analisi Titolo":
                     if passivita > 0: st.info(f"💡 **Indice di Liquidità (Current Ratio): {(attivi / passivita):.2f}**")
                 st.dataframe(balance_sheet, use_container_width=True)
             except: st.warning("Stato Patrimoniale non reperibile.")
+# --- PAGINA NUOVA: IL RING (CONFRONTO TITOLI) ---
+elif pagina == "Il Ring (Confronto Titoli)":
+    st.header("🥊 Il Ring: Confronto Titoli")
+    st.write("Confronta due o più aziende normalizzando il prezzo (Base 100). Scopri chi ha performato meglio a parità di capitale investito iniziale.")
+
+    col_t1, col_t2, col_periodo = st.columns(3)
+    with col_t1: ticker1 = st.text_input("Sfidante 1 (es. RACE.MI, TSLA):", "TSLA").upper()
+    with col_t2: ticker2 = st.text_input("Sfidante 2 (es. STLA.MI, F):", "F").upper()
+    with col_periodo: periodo = st.selectbox("Orizzonte temporale:", ["1y", "2y", "5y", "max"], index=1)
+
+    if st.button("Avvia Sfida"):
+        with st.spinner("Preparazione del Ring in corso..."):
+            try:
+                # Scarichiamo i dati freschi (senza cache per avere massima flessibilità sul periodo)
+                dati1 = yf.Ticker(ticker1).history(period=periodo)
+                dati2 = yf.Ticker(ticker2).history(period=periodo)
+
+                if not dati1.empty and not dati2.empty:
+                    # La Magia Finanziaria: Normalizzazione Base 100
+                    dati1['Norm'] = (dati1['Close'] / dati1['Close'].iloc[0]) * 100
+                    dati2['Norm'] = (dati2['Close'] / dati2['Close'].iloc[0]) * 100
+
+                    # Disegniamo il grafico
+                    fig_ring = go.Figure()
+                    fig_ring.add_trace(go.Scatter(x=dati1.index, y=dati1['Norm'], mode='lines', name=ticker1, line=dict(color='#3498db', width=2.5)))
+                    fig_ring.add_trace(go.Scatter(x=dati2.index, y=dati2['Norm'], mode='lines', name=ticker2, line=dict(color='#e74c3c', width=2.5)))
+
+                    fig_ring.update_layout(title=f"Testa a Testa: {ticker1} vs {ticker2} ({periodo})", template="plotly_dark", yaxis_title="Valore (Partenza a 100)", margin=dict(l=0, r=0, t=40, b=0), height=450)
+                    st.plotly_chart(fig_ring, use_container_width=True)
+
+                    # Calcoliamo la performance netta
+                    perf1 = ((dati1['Close'].iloc[-1] - dati1['Close'].iloc[0]) / dati1['Close'].iloc[0]) * 100
+                    perf2 = ((dati2['Close'].iloc[-1] - dati2['Close'].iloc[0]) / dati2['Close'].iloc[0]) * 100
+
+                    # Stabiliamo il vincitore
+                    vincitore = ticker1 if perf1 > perf2 else ticker2
+                    st.success(f"🏆 Il vincitore del periodo è **{vincitore}**!")
+
+                    # Mostriamo i numeri
+                    c1, c2 = st.columns(2)
+                    c1.metric(f"Performance Storica {ticker1}", f"{perf1:.2f}%")
+                    c2.metric(f"Performance Storica {ticker2}", f"{perf2:.2f}%")
+                else:
+                    st.error("Dati non trovati. Controlla che i Ticker siano corretti (aggiungi .MI per le italiane).")
+            except Exception as e:
+                st.error("Si è verificato un errore di connessione con i mercati.")
+
+
+
+
 
 # --- PAGINA 2: IL MIO PORTAFOGLIO (AGGIORNATA CON CALCOLO PMC) ---
 elif pagina == "Il Mio Portafoglio":

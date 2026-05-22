@@ -98,6 +98,54 @@ if pagina == "Analisi Titolo":
                     if passivita > 0: st.info(f"💡 **Indice di Liquidità (Current Ratio): {(attivi / passivita):.2f}**")
                 st.dataframe(balance_sheet, use_container_width=True)
             except: st.warning("Stato Patrimoniale non reperibile.")
+
+
+# --- NUOVA SEZIONE: LA MACCHINA DEI DIVIDENDI ---
+        st.divider()
+        st.subheader("💸 Storico Dividendi e Rendimento")
+        
+        with st.spinner("Estrazione storico dividendi in corso..."):
+            try:
+                azienda = yf.Ticker(ticker)
+                dividendi = azienda.dividends
+                
+                if not dividendi.empty:
+                    # AGGIRIAMO IL PROBLEMA PANDAS: Proviamo 'YE' (nuova versione), se fallisce usiamo 'Y' (vecchia versione)
+                    try:
+                        div_annuali = dividendi.resample('YE').sum()
+                    except:
+                        div_annuali = dividendi.resample('Y').sum()
+                        
+                    div_annuali.index = div_annuali.index.year
+                    
+                    # Scarichiamo solo l'ultimo prezzo per il calcolo per non sovraccaricare Yahoo
+                    storia_recente = azienda.history(period="1d")
+                    prezzo_att = storia_recente['Close'].iloc[-1] if not storia_recente.empty else 0
+                    
+                    # Calcoliamo l'ultimo dividendo e il Dividend Yield
+                    ultimo_div = div_annuali.iloc[-1]
+                    div_yield = (ultimo_div / prezzo_att * 100) if prezzo_att > 0 else 0
+                    
+                    col_d1, col_d2 = st.columns([1, 3])
+                    
+                    with col_d1:
+                        st.metric("Ultimo Dividendo Annuale", f"{ultimo_div:.2f}")
+                        st.metric("Dividend Yield (Stimato)", f"{div_yield:.2f}%")
+                        st.info("Un Dividend Yield alto indica un buon ritorno sul capitale, ma va confrontato con la sostenibilità dell'azienda.")
+                        
+                    with col_d2:
+                        # Grafico a barre per mostrare i pagamenti storici
+                        fig_div = go.Figure(data=[go.Bar(x=div_annuali.index, y=div_annuali.values, marker_color='#f1c40f')])
+                        fig_div.update_layout(title="Dividendi Totali Pagati per Anno", template="plotly_dark", margin=dict(l=0, r=0, t=30, b=0), height=300)
+                        st.plotly_chart(fig_div, use_container_width=True)
+                else:
+                    st.info("Questa azienda non distribuisce dividendi (oppure i dati non sono al momento disponibili).")
+            except Exception as e:
+                # ECCO LA MAGIA: Ora stampiamo l'errore nudo e crudo!
+                st.error(f"Errore tecnico individuato: {e}")
+
+
+
 # --- PAGINA NUOVA: IL RING (CONFRONTO TITOLI) ---
 elif pagina == "Il Ring (Confronto Titoli)":
     st.header("🥊 Il Ring: Confronto Titoli")
@@ -144,10 +192,6 @@ elif pagina == "Il Ring (Confronto Titoli)":
                     st.error("Dati non trovati. Controlla che i Ticker siano corretti (aggiungi .MI per le italiane).")
             except Exception as e:
                 st.error("Si è verificato un errore di connessione con i mercati.")
-
-
-
-
 
 # --- PAGINA 2: IL MIO PORTAFOGLIO (AGGIORNATA CON CALCOLO PMC) ---
 elif pagina == "Il Mio Portafoglio":
